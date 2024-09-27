@@ -256,7 +256,11 @@ namespace DeutschCode
 			expression = ReplaceVariables(expression);
 
 			// Log the expression being evaluated for debugging
-			Console.WriteLine($"Evaluating expression: {expression}");
+			// Print debug info if debugMode is enabled
+			if (debugMode)
+			{
+				Console.WriteLine($"Evaluating expression: {expression}");
+			}
 
 			// Use DataTable to compute the mathematical expression
 			var table = new DataTable();
