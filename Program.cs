@@ -6,9 +6,10 @@ namespace DeutschCode
 {
     class Program
     {
-        // Dictionary to store variables (their names and values)
+        // Dictionary to store variables and functions
         static Dictionary<string, object> variables = new Dictionary<string, object>();
-        
+        static Dictionary<string, Func<List<object>, object>> functions = new Dictionary<string, Func<List<object>, object>>();
+
         // Debug flag
         static bool debugMode = false;
 
@@ -60,6 +61,16 @@ namespace DeutschCode
                 {
                     HandleSei(trimmedLine);
                 }
+                // Handle function definitions
+                else if (trimmedLine.StartsWith("funktion"))
+                {
+                    HandleFunctionDefinition(trimmedLine, lines);
+                }
+                // Interpret function calls
+                else if (IsFunctionCall(trimmedLine))
+                {
+                    HandleFunctionCall(trimmedLine);
+                }
                 else
                 {
                     Console.WriteLine($"Unrecognized command: {trimmedLine}");
@@ -101,10 +112,7 @@ namespace DeutschCode
         // Handle "sei ... vom Typ Zahl." or "sei ... = ..." statement
         static void HandleSei(string line)
         {
-            // Example: "sei summe vom Typ Zahl."
-            // Example: "sei summe = 5."
-
-            string[] parts = line.Split(' ');
+            string[] parts = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
             if (parts.Length >= 4 && parts[2] == "vom" && parts[3] == "Typ")
             {
@@ -142,23 +150,129 @@ namespace DeutschCode
             }
         }
 
-        // Replace variable names in an expression with their values
-        static string ReplaceVariables(string expression)
+        // Handle function definition
+        static void HandleFunctionDefinition(string line, string[] lines)
         {
-            foreach (var variable in variables)
+            string functionName = line.Split(' ')[1];
+            List<string> body = new List<string>();
+            List<string> parameters = new List<string>();
+
+            // Collect function parameters from the line
+            var parameterPart = line.Substring(line.IndexOf('(') + 1).TrimEnd(')').Trim();
+            if (!string.IsNullOrWhiteSpace(parameterPart))
             {
-                expression = expression.Replace(variable.Key, variable.Value.ToString());
+                parameters.AddRange(parameterPart.Split(','));
             }
-            return expression;
+
+            // Collect the body of the function
+            for (int i = Array.IndexOf(lines, line) + 1; i < lines.Length; i++)
+            {
+                string nextLine = lines[i].Trim();
+                if (nextLine == "ende.")
+                    break;
+                body.Add(nextLine);
+            }
+
+            functions[functionName] = (List<object> args) =>
+            {
+                // Create a local variable scope for the function
+                if (args.Count > 0)
+                {
+                    for (int i = 0; i < parameters.Count; i++)
+                    {
+                        if (i < args.Count)
+                        {
+                            variables[parameters[i].Trim()] = args[i]; // Assign argument to parameter
+                        }
+                    }
+                }
+
+                foreach (var bodyLine in body)
+                {
+                    // Replace variables in the body line with their current values
+                    Interpret(ReplaceVariables(bodyLine));
+                }
+                return null;
+            };
+
+            if (debugMode)
+            {
+                Console.WriteLine($"Function {functionName} defined.");
+            }
         }
 
-        // Utility method to evaluate mathematical expressions
-        static object EvaluateExpression(string expression)
+        // Handle function calls
+        static void HandleFunctionCall(string line)
         {
-            // Use DataTable to compute the mathematical expression
-            var table = new DataTable();
-            var result = table.Compute(expression, string.Empty);
-            return result;
+            string functionName = line.Split('(')[0];
+            if (functions.ContainsKey(functionName))
+            {
+                string argumentPart = line.Substring(line.IndexOf('(') + 1);
+                argumentPart = argumentPart.TrimEnd(')'); // Remove the closing parenthesis
+                List<object> args = new List<object>();
+
+                if (!string.IsNullOrWhiteSpace(argumentPart))
+                {
+                    // Parse the arguments if there are any
+                    string[] arguments = argumentPart.Split(',');
+                    foreach (var arg in arguments)
+                    {
+                        args.Add(EvaluateExpression(ReplaceVariables(arg.Trim()))); // Evaluate the argument
+                    }
+                }
+
+                functions[functionName](args); // Call the function with parsed arguments
+                if (debugMode)
+                {
+                    Console.WriteLine($"Called function: {functionName}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"Function {functionName} not found.");
+            }
         }
+
+        // Helper to check if the line is a function call
+        static bool IsFunctionCall(string line)
+        {
+            return functions.ContainsKey(line.Split('(')[0]);
+        }
+
+        // Replace variable names in an expression with their values
+		static string ReplaceVariables(string expression)
+		{
+			foreach (var variable in variables)
+			{
+				expression = expression.Replace(variable.Key, variable.Value.ToString());
+			}
+			return expression;
+		}
+
+		// Utility method to evaluate mathematical expressions
+		static object EvaluateExpression(string expression)
+		{
+			// Replace variable names in the expression with their values
+			expression = ReplaceVariables(expression);
+
+			// Log the expression being evaluated for debugging
+			Console.WriteLine($"Evaluating expression: {expression}");
+
+			// Use DataTable to compute the mathematical expression
+			var table = new DataTable();
+
+			try
+			{
+				var result = table.Compute(expression, string.Empty);
+				return result;
+			}
+			catch (Exception ex)
+			{
+				// Log the error for debugging
+				Console.WriteLine($"Error evaluating expression '{expression}': {ex.Message}");
+				throw; // Rethrow the exception after logging
+			}
+		}
+
     }
 }

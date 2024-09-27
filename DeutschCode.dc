@@ -1,6 +1,13 @@
-sei zahl = 10.
-gib zahl aus.
-gib 'ich fresse dich' aus.
-sei zhl2 = 12.
-sei zhl3 = 8.
-gib zhl2 + zhl3 aus.
+// code.dc
+sei summe vom Typ Zahl.
+sei summe = 5.
+gib 'Die Summe ist: ' aus.
+gib summe aus.
+
+funktion addiere(a, b)
+    sei ergebnis = a + b.
+    gib 'Das Ergebnis ist: ' aus.
+    gib ergebnis aus.
+ende.
+
+addiere(3, 4).
