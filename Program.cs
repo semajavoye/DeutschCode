@@ -38,37 +38,29 @@ namespace DeutschCode
 		}
 
 		// Method to interpret DeutschCode
+		// Existing static variables and Main method...
+
 		static void Interpret(string code)
 		{
-			// Split the code into lines.
-			string[] lines = code.Split('\n');
-
-			// Process each line of the code
+			string[] lines = code.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
 			for (int i = 0; i < lines.Length; i++)
 			{
 				string line = lines[i].Trim();
-
-				// Skip empty lines or lines with just "ende."
 				if (string.IsNullOrWhiteSpace(line) || line == "ende.")
 					continue;
 
-				// Interpret "gib ... aus." statements (for printing values)
 				if (line.StartsWith("gib") && line.EndsWith("aus."))
 				{
 					HandleGib(line);
 				}
-				// Interpret "sei ... vom Typ Zahl." or "sei ... = ..." (for declaring and assigning variables)
 				else if (line.StartsWith("sei"))
 				{
 					HandleSei(line);
 				}
-				// Handle function definitions
 				else if (line.StartsWith("funktion"))
 				{
-					// Function definition handling starts from here
 					i = HandleFunctionDefinition(line, lines, i);
 				}
-				// Interpret function calls
 				else if (IsFunctionCall(line))
 				{
 					if (debugMode) Console.WriteLine("Function call detected.");
@@ -84,25 +76,20 @@ namespace DeutschCode
 		// Handle "gib ... aus." statement
 		static void HandleGib(string line)
 		{
-			// Remove "gib" at the start and "aus." at the end
 			string expression = line.Substring(3, line.Length - 7).Trim();
 
-			// Check if the expression is a string (starts and ends with single quotes)
+			// Check if the expression is a string
 			if (expression.StartsWith("'") && expression.EndsWith("'"))
 			{
-				// Remove the quotes and print the string
 				string output = expression.Substring(1, expression.Length - 2);
 				Console.WriteLine(output);
 			}
 			else
 			{
-				// Replace variable names in the expression with their values
-				expression = ReplaceVariables(expression);
-
-				// Evaluate the expression (supports basic math operations)
+				// Evaluate the expression, but replace variables only in the context of this call
 				try
 				{
-					var result = EvaluateExpression(expression);
+					var result = EvaluateExpression(ReplaceVariables(expression));
 					Console.WriteLine(result);
 				}
 				catch (Exception ex)
@@ -139,21 +126,23 @@ namespace DeutschCode
 				// Handle "sei summe = 5." (declare and assign variable)
 				string[] assignmentParts = line.Split(new string[] { " = " }, StringSplitOptions.None);
 
-				string variableName = assignmentParts[0].Split(' ')[1];  // e.g., "summe"
-				string expression = assignmentParts[1].Replace(".", "").Trim(); // e.g., "5"
-
-				var result = EvaluateExpression(ReplaceVariables(expression));
-				variables[variableName] = result;
-
-				// Print debug info if debugMode is enabled
-				if (debugMode)
+				if (assignmentParts.Length == 2)
 				{
-					Console.WriteLine($"Assigned variable: {variableName} = {result}");
+					string variableName = assignmentParts[0].Split(' ')[1];  // e.g., "summe"
+					string expression = assignmentParts[1].Replace(".", "").Trim(); // e.g., "5"
+
+					var result = EvaluateExpression(ReplaceVariables(expression));
+					variables[variableName] = result;
+
+					// Print debug info if debugMode is enabled
+					if (debugMode)
+					{
+						Console.WriteLine($"Assigned variable: {variableName} = {result}");
+					}
 				}
 			}
 		}
 
-		// Handle function calls
 		static int HandleFunctionDefinition(string line, string[] lines, int currentIndex)
 		{
 			string functionName = line.Split(' ')[1].Split('(')[0].Trim();
@@ -176,8 +165,10 @@ namespace DeutschCode
 				currentIndex++;
 			}
 
-			functions[functionName] = (args) =>
+			// Assign the function, ensuring it's non-null
+			functions[functionName] = new Action<List<object>>(args =>
 			{
+				// Local scope: store function parameters
 				Dictionary<string, object> localVariables = new Dictionary<string, object>();
 
 				for (int i = 0; i < parameterNames.Count; i++)
@@ -185,16 +176,22 @@ namespace DeutschCode
 					localVariables[parameterNames[i]] = args[i];
 				}
 
+				// Process each line in the function body
 				foreach (var bodyLine in functionBody)
 				{
+					// Replace variables only in the context of this function
 					string replacedLine = bodyLine;
+
+					// Only replace local variables here
 					foreach (var localVar in localVariables)
 					{
 						replacedLine = replacedLine.Replace(localVar.Key, localVar.Value.ToString());
 					}
+
+					// Interpret the line (now only affects local variables)
 					Interpret(replacedLine);
 				}
-			};
+			});
 
 			if (debugMode)
 			{
@@ -204,6 +201,8 @@ namespace DeutschCode
 			return currentIndex;
 		}
 
+
+		// Handle function calls
 		static void HandleFunctionCall(string line)
 		{
 			string functionName = line.Split('(')[0].Trim();
@@ -258,19 +257,17 @@ namespace DeutschCode
 			return expression;
 		}
 
-		// Utility method to evaluate mathematical expressions
+		// Other methods remain unchanged...
+
 		static object EvaluateExpression(string expression)
 		{
-			// Replace variable names in the expression with their values
 			expression = ReplaceVariables(expression);
 
-			// Log the expression being evaluated for debugging
 			if (debugMode)
 			{
 				Console.WriteLine($"Evaluating expression: {expression}");
 			}
 
-			// Use DataTable to compute the mathematical expression
 			var table = new DataTable();
 
 			try
@@ -280,9 +277,8 @@ namespace DeutschCode
 			}
 			catch (Exception ex)
 			{
-				// Log the error for debugging
 				Console.WriteLine($"Error evaluating expression '{expression}': {ex.Message}");
-				throw; // Rethrow the exception after logging
+				throw;
 			}
 		}
 	}
