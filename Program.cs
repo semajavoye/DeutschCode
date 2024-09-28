@@ -4,242 +4,251 @@ using System.Data;
 
 namespace DeutschCode
 {
-    class Program
-    {
-        // Dictionary to store variables and functions
-        static Dictionary<string, object> variables = new Dictionary<string, object>();
-        static Dictionary<string, Func<List<object>, object>> functions = new Dictionary<string, Func<List<object>, object>>();
+	class Program
+	{
+		// Dictionary to store functions
+		static Dictionary<string, Action<List<object>>> functions = new Dictionary<string, Action<List<object>>>();
 
-        // Debug flag
-        static bool debugMode = false;
+		// Dictionary to store variables
+		static Dictionary<string, object> variables = new Dictionary<string, object>();
 
-        static void Main(string[] args)
-        {
-            // Check if the user passed the correct arguments.
-            if (args.Length < 2 || args[0] != "-code" || !args[1].EndsWith(".dc"))
-            {
-                Console.WriteLine("Usage: DeutschCode.exe -code code.dc [-d]");
-                return;
-            }
+		// Debug flag
+		static bool debugMode = false;
 
-            // Check if debug flag (-d) is set
-            if (args.Length == 3 && args[2] == "-d")
-            {
-                debugMode = true;
-            }
+		static void Main(string[] args)
+		{
+			// Check if the user passed the correct arguments.
+			if (args.Length < 2 || args[0] != "-code" || !args[1].EndsWith(".dc"))
+			{
+				Console.WriteLine("Usage: DeutschCode.exe -code code.dc [-d]");
+				return;
+			}
 
-            // Read the code from the file.
-            string code = System.IO.File.ReadAllText(args[1]);
+			// Check if debug flag (-d) is set
+			if (args.Length == 3 && args[2] == "-d")
+			{
+				debugMode = true;
+			}
 
-            // Interpret the code.
-            Interpret(code);
-        }
+			// Read the code from the file.
+			string code = System.IO.File.ReadAllText(args[1]);
 
-        // Method to interpret DeutschCode
-        static void Interpret(string code)
-        {
-            // Split the code into lines.
-            string[] lines = code.Split('\n');
+			// Interpret the code.
+			Interpret(code);
+		}
 
-            // Process each line of the code
-            foreach (string line in lines)
-            {
-                // Trim the line to remove unnecessary spaces
-                string trimmedLine = line.Trim();
+		// Method to interpret DeutschCode
+		static void Interpret(string code)
+		{
+			// Split the code into lines.
+			string[] lines = code.Split('\n');
 
-                // Skip empty lines
-                if (string.IsNullOrWhiteSpace(trimmedLine))
-                    continue;
+			// Process each line of the code
+			for (int i = 0; i < lines.Length; i++)
+			{
+				string line = lines[i].Trim();
 
-                // Interpret "gib ... aus." statements (for printing values)
-                if (trimmedLine.StartsWith("gib") && trimmedLine.EndsWith("aus."))
-                {
-                    HandleGib(trimmedLine);
-                }
-                // Interpret "sei ... vom Typ Zahl." or "sei ... = ..." (for declaring and assigning variables)
-                else if (trimmedLine.StartsWith("sei"))
-                {
-                    HandleSei(trimmedLine);
-                }
-                // Handle function definitions
-                else if (trimmedLine.StartsWith("funktion"))
-                {
-                    HandleFunctionDefinition(trimmedLine, lines);
-                }
-                // Interpret function calls
-                else if (IsFunctionCall(trimmedLine))
-                {
-                    HandleFunctionCall(trimmedLine);
-                }
-                else
-                {
-                    Console.WriteLine($"Unrecognized command: {trimmedLine}");
-                }
-            }
-        }
+				// Skip empty lines or lines with just "ende."
+				if (string.IsNullOrWhiteSpace(line) || line == "ende.")
+					continue;
 
-        // Handle "gib ... aus." statement
-        static void HandleGib(string line)
-        {
-            // Remove "gib" at the start and "aus." at the end
-            string expression = line.Substring(3, line.Length - 7).Trim();
+				// Interpret "gib ... aus." statements (for printing values)
+				if (line.StartsWith("gib") && line.EndsWith("aus."))
+				{
+					HandleGib(line);
+				}
+				// Interpret "sei ... vom Typ Zahl." or "sei ... = ..." (for declaring and assigning variables)
+				else if (line.StartsWith("sei"))
+				{
+					HandleSei(line);
+				}
+				// Handle function definitions
+				else if (line.StartsWith("funktion"))
+				{
+					// Function definition handling starts from here
+					i = HandleFunctionDefinition(line, lines, i);
+				}
+				// Interpret function calls
+				else if (IsFunctionCall(line))
+				{
+					if (debugMode) Console.WriteLine("Function call detected.");
+					HandleFunctionCall(line);
+				}
+				else
+				{
+					Console.WriteLine($"Unrecognized command: {line}");
+				}
+			}
+		}
 
-            // Check if the expression is a string (starts and ends with single quotes)
-            if (expression.StartsWith("'") && expression.EndsWith("'"))
-            {
-                // Remove the quotes and print the string
-                string output = expression.Substring(1, expression.Length - 2);
-                Console.WriteLine(output);
-            }
-            else
-            {
-                // Replace variable names in the expression with their values
-                expression = ReplaceVariables(expression);
+		// Handle "gib ... aus." statement
+		static void HandleGib(string line)
+		{
+			// Remove "gib" at the start and "aus." at the end
+			string expression = line.Substring(3, line.Length - 7).Trim();
 
-                // Evaluate the expression (supports basic math operations)
-                try
-                {
-                    var result = EvaluateExpression(expression);
-                    Console.WriteLine(result);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error evaluating expression: {expression}. {ex.Message}");
-                }
-            }
-        }
+			// Check if the expression is a string (starts and ends with single quotes)
+			if (expression.StartsWith("'") && expression.EndsWith("'"))
+			{
+				// Remove the quotes and print the string
+				string output = expression.Substring(1, expression.Length - 2);
+				Console.WriteLine(output);
+			}
+			else
+			{
+				// Replace variable names in the expression with their values
+				expression = ReplaceVariables(expression);
 
-        // Handle "sei ... vom Typ Zahl." or "sei ... = ..." statement
-        static void HandleSei(string line)
-        {
-            string[] parts = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+				// Evaluate the expression (supports basic math operations)
+				try
+				{
+					var result = EvaluateExpression(expression);
+					Console.WriteLine(result);
+				}
+				catch (Exception ex)
+				{
+					Console.WriteLine($"Error evaluating expression: {expression}. {ex.Message}");
+				}
+			}
+		}
 
-            if (parts.Length >= 4 && parts[2] == "vom" && parts[3] == "Typ")
-            {
-                // Handle "sei summe vom Typ Zahl." (declare variable)
-                string variableName = parts[1];
-                string variableType = parts[4].Replace(".", ""); // e.g., "Zahl"
+		// Handle "sei ... vom Typ Zahl." or "sei ... = ..." statement
+		static void HandleSei(string line)
+		{
+			string[] parts = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
-                if (variableType == "Zahl")
-                {
-                    variables[variableName] = 0;  // Default value for numbers
+			if (parts.Length >= 4 && parts[2] == "vom" && parts[3] == "Typ")
+			{
+				// Handle "sei summe vom Typ Zahl." (declare variable)
+				string variableName = parts[1];
+				string variableType = parts[4].Replace(".", ""); // e.g., "Zahl"
 
-                    // Print debug info if debugMode is enabled
-                    if (debugMode)
-                    {
-                        Console.WriteLine($"Declared variable: {variableName} as {variableType}");
-                    }
-                }
-            }
-            else if (line.Contains("="))
-            {
-                // Handle "sei summe = 5." (declare and assign variable)
-                string[] assignmentParts = line.Split(new string[] { " = " }, StringSplitOptions.None);
+				if (variableType == "Zahl")
+				{
+					variables[variableName] = 0;  // Default value for numbers
 
-                string variableName = assignmentParts[0].Split(' ')[1];  // e.g., "summe"
-                string expression = assignmentParts[1].Replace(".", "").Trim(); // e.g., "5"
+					// Print debug info if debugMode is enabled
+					if (debugMode)
+					{
+						Console.WriteLine($"Declared variable: {variableName} as {variableType}");
+					}
+				}
+			}
+			else if (line.Contains("="))
+			{
+				// Handle "sei summe = 5." (declare and assign variable)
+				string[] assignmentParts = line.Split(new string[] { " = " }, StringSplitOptions.None);
 
-                var result = EvaluateExpression(ReplaceVariables(expression));
-                variables[variableName] = result;
+				string variableName = assignmentParts[0].Split(' ')[1];  // e.g., "summe"
+				string expression = assignmentParts[1].Replace(".", "").Trim(); // e.g., "5"
 
-                // Print debug info if debugMode is enabled
-                if (debugMode)
-                {
-                    Console.WriteLine($"Assigned variable: {variableName} = {result}");
-                }
-            }
-        }
+				var result = EvaluateExpression(ReplaceVariables(expression));
+				variables[variableName] = result;
 
-        // Handle function definition
-        static void HandleFunctionDefinition(string line, string[] lines)
-        {
-            string functionName = line.Split(' ')[1];
-            List<string> body = new List<string>();
-            List<string> parameters = new List<string>();
+				// Print debug info if debugMode is enabled
+				if (debugMode)
+				{
+					Console.WriteLine($"Assigned variable: {variableName} = {result}");
+				}
+			}
+		}
 
-            // Collect function parameters from the line
-            var parameterPart = line.Substring(line.IndexOf('(') + 1).TrimEnd(')').Trim();
-            if (!string.IsNullOrWhiteSpace(parameterPart))
-            {
-                parameters.AddRange(parameterPart.Split(','));
-            }
+		// Handle function calls
+		static int HandleFunctionDefinition(string line, string[] lines, int currentIndex)
+		{
+			string functionName = line.Split(' ')[1].Split('(')[0].Trim();
+			string parameterList = line.Substring(line.IndexOf('(') + 1);
+			parameterList = parameterList.Substring(0, parameterList.IndexOf(')')).Trim();
+			string[] parameters = parameterList.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
 
-            // Collect the body of the function
-            for (int i = Array.IndexOf(lines, line) + 1; i < lines.Length; i++)
-            {
-                string nextLine = lines[i].Trim();
-                if (nextLine == "ende.")
-                    break;
-                body.Add(nextLine);
-            }
+			List<string> parameterNames = new List<string>();
+			foreach (var param in parameters)
+			{
+				parameterNames.Add(param.Trim());
+			}
 
-            functions[functionName] = (List<object> args) =>
-            {
-                // Create a local variable scope for the function
-                if (args.Count > 0)
-                {
-                    for (int i = 0; i < parameters.Count; i++)
-                    {
-                        if (i < args.Count)
-                        {
-                            variables[parameters[i].Trim()] = args[i]; // Assign argument to parameter
-                        }
-                    }
-                }
+			List<string> functionBody = new List<string>();
+			currentIndex++;
 
-                foreach (var bodyLine in body)
-                {
-                    // Replace variables in the body line with their current values
-                    Interpret(ReplaceVariables(bodyLine));
-                }
-                return null;
-            };
+			while (currentIndex < lines.Length && lines[currentIndex].Trim() != "ende.")
+			{
+				functionBody.Add(lines[currentIndex].Trim());
+				currentIndex++;
+			}
 
-            if (debugMode)
-            {
-                Console.WriteLine($"Function {functionName} defined.");
-            }
-        }
+			functions[functionName] = (args) =>
+			{
+				Dictionary<string, object> localVariables = new Dictionary<string, object>();
 
-        // Handle function calls
-        static void HandleFunctionCall(string line)
-        {
-            string functionName = line.Split('(')[0];
-            if (functions.ContainsKey(functionName))
-            {
-                string argumentPart = line.Substring(line.IndexOf('(') + 1);
-                argumentPart = argumentPart.TrimEnd(')'); // Remove the closing parenthesis
-                List<object> args = new List<object>();
+				for (int i = 0; i < parameterNames.Count; i++)
+				{
+					localVariables[parameterNames[i]] = args[i];
+				}
 
-                if (!string.IsNullOrWhiteSpace(argumentPart))
-                {
-                    // Parse the arguments if there are any
-                    string[] arguments = argumentPart.Split(',');
-                    foreach (var arg in arguments)
-                    {
-                        args.Add(EvaluateExpression(ReplaceVariables(arg.Trim()))); // Evaluate the argument
-                    }
-                }
+				foreach (var bodyLine in functionBody)
+				{
+					string replacedLine = bodyLine;
+					foreach (var localVar in localVariables)
+					{
+						replacedLine = replacedLine.Replace(localVar.Key, localVar.Value.ToString());
+					}
+					Interpret(replacedLine);
+				}
+			};
 
-                functions[functionName](args); // Call the function with parsed arguments
-                if (debugMode)
-                {
-                    Console.WriteLine($"Called function: {functionName}");
-                }
-            }
-            else
-            {
-                Console.WriteLine($"Function {functionName} not found.");
-            }
-        }
+			if (debugMode)
+			{
+				Console.WriteLine($"Function {functionName} defined with parameters: {string.Join(", ", parameterNames)}");
+			}
 
-        // Helper to check if the line is a function call
-        static bool IsFunctionCall(string line)
-        {
-            return functions.ContainsKey(line.Split('(')[0]);
-        }
+			return currentIndex;
+		}
 
-        // Replace variable names in an expression with their values
+		static void HandleFunctionCall(string line)
+		{
+			string functionName = line.Split('(')[0].Trim();
+			if (functions.ContainsKey(functionName))
+			{
+				string argumentPart = line.Substring(line.IndexOf('(') + 1);
+				argumentPart = argumentPart.TrimEnd(')'); // Remove the closing parenthesis
+				List<object> args = new List<object>();
+
+				if (!string.IsNullOrWhiteSpace(argumentPart))
+				{
+					// Parse the arguments if there are any
+					string[] arguments = argumentPart.Split(',');
+					foreach (var arg in arguments)
+					{
+						args.Add(EvaluateExpression(ReplaceVariables(arg.Trim()))); // Evaluate the argument
+					}
+				}
+
+				functions[functionName](args); // Call the function with parsed arguments
+				if (debugMode)
+				{
+					Console.WriteLine($"Called function: {functionName}");
+				}
+			}
+			else
+			{
+				Console.WriteLine($"Function {functionName} not found.");
+			}
+		}
+
+		// Helper to check if the line is a function call
+		static bool IsFunctionCall(string line)
+		{
+			// Check if the line contains '(' and ends with ')'
+			if (line.Contains("(") && line.EndsWith(")"))
+			{
+				string functionName = line.Split('(')[0].Trim();
+				if (debugMode) Console.WriteLine($"Checking for function: {functionName}");
+				return functions.ContainsKey(functionName); // Ensure that the function has been defined
+			}
+			return false;
+		}
+
+		// Replace variable names in an expression with their values
 		static string ReplaceVariables(string expression)
 		{
 			foreach (var variable in variables)
@@ -256,7 +265,6 @@ namespace DeutschCode
 			expression = ReplaceVariables(expression);
 
 			// Log the expression being evaluated for debugging
-			// Print debug info if debugMode is enabled
 			if (debugMode)
 			{
 				Console.WriteLine($"Evaluating expression: {expression}");
@@ -277,6 +285,5 @@ namespace DeutschCode
 				throw; // Rethrow the exception after logging
 			}
 		}
-
-    }
+	}
 }

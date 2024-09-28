@@ -3,3 +3,9 @@ gib a aus.
 sei b = 10.
 sei c = 129.
 gib a + b + c aus.
+
+funktion test(a)
+    gib a aus.
+ende.
+
+test(2)
