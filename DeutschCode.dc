@@ -4,8 +4,11 @@ sei b = 10.
 sei c = 129.
 gib a + b + c aus.
 
-funktion test(a)
-    gib a aus.
+sei oo = 1.
+
+funktion test(oo , ab)
+    gib oo aus.
+	gib ab aus.
 ende.
 
-test(2)
+test(18, test)
